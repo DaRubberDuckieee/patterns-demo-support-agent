@@ -104,11 +104,14 @@ class EnvironmentEvaluator(EvaluatorBase[Message]):
         golden_actions = task.evaluation_criteria.actions or []
         for action in golden_actions:
             try:
-                gold_environment.make_tool_call(
-                    tool_name=action.name,
-                    requestor=action.requestor,
-                    **action.arguments,
-                )
+                # Reference actions describe target DB changes, not a live
+                # customer's authenticated conversation.
+                with gold_environment.trusted_execution():
+                    gold_environment.make_tool_call(
+                        tool_name=action.name,
+                        requestor=action.requestor,
+                        **action.arguments,
+                    )
             except Exception as e:
                 logger.warning(
                     f"Error in golden actions {action.name}({action.arguments}): {e}"
@@ -261,11 +264,14 @@ class FullDuplexEnvironmentEvaluator(EvaluatorBase[Tick]):
         golden_actions = task.evaluation_criteria.actions or []
         for action in golden_actions:
             try:
-                gold_environment.make_tool_call(
-                    tool_name=action.name,
-                    requestor=action.requestor,
-                    **action.arguments,
-                )
+                # Reference actions describe target DB changes, not a live
+                # customer's authenticated conversation.
+                with gold_environment.trusted_execution():
+                    gold_environment.make_tool_call(
+                        tool_name=action.name,
+                        requestor=action.requestor,
+                        **action.arguments,
+                    )
             except Exception as e:
                 logger.warning(
                     f"Error in golden actions {action.name}({action.arguments}): {e}"

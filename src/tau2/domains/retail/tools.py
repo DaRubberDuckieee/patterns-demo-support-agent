@@ -1,6 +1,7 @@
 """Toolkit for the retail domain."""
 
 import json
+from contextlib import contextmanager
 from typing import List
 
 from tau2.domains.retail.data_model import (
@@ -32,6 +33,7 @@ class RetailTools(ToolKitBase):  # Tools
         super().__init__(db)
         # Identity belongs to this conversation, never to the shared database.
         self._verified_user_id: str | None = None
+        self._trusted_execution = False
         self.regional_settings = (
             DomainRegionalSettings.model_validate(regional_settings).model_copy(
                 deep=True
@@ -60,8 +62,22 @@ class RetailTools(ToolKitBase):  # Tools
                 tool.params.model_rebuild(force=True)
         return tools
 
+    @contextmanager
+    def trusted_execution(self):
+        """Allow server-side setup without granting the conversation an identity."""
+        previous_scope = self._trusted_execution
+        previous_identity = self._verified_user_id
+        self._trusted_execution = True
+        try:
+            yield
+        finally:
+            self._trusted_execution = previous_scope
+            self._verified_user_id = previous_identity
+
     def _require_verified_user(self, user_id: str | None = None) -> None:
         """Require the policy's identity lookup and access to that account only."""
+        if self._trusted_execution:
+            return
         if self._verified_user_id is None:
             raise ValueError(
                 "Identity verification required: look up the customer by email or name and zip first"

@@ -1,4 +1,5 @@
 import json
+from contextlib import ExitStack, contextmanager
 from copy import deepcopy
 from datetime import date, datetime
 from typing import Any, Literal, Optional
@@ -191,6 +192,15 @@ class Environment:
         """
         pass
 
+    @contextmanager
+    def trusted_execution(self):
+        """Enter toolkit scopes for trusted task setup and reference evaluation."""
+        with ExitStack() as stack:
+            for toolkit in (self.tools, self.user_tools):
+                if toolkit is not None:
+                    stack.enter_context(toolkit.trusted_execution())
+            yield
+
     def run_env_function_call(self, env_function_call: EnvFunctionCall) -> Any:
         """
         Runs any function available on agent environment or user environment.
@@ -206,7 +216,8 @@ class Environment:
         func = getattr(tool_kit, func_name)
         if func is None:
             raise ValueError(f"Function {func_name} not found in {env_type} tools")
-        res = func(**env_function_call.arguments)
+        with self.trusted_execution():
+            res = func(**env_function_call.arguments)
         self.sync_tools()
         return res
 

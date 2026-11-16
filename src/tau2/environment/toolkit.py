@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 from enum import Enum
 from typing import Annotated, Any, Callable, Dict, Optional, TypeVar
 
@@ -129,6 +130,11 @@ class ToolKitBase(metaclass=ToolKitType):
 
     def __init__(self, db: Optional[T] = None):
         self.db: Optional[T] = db
+
+    @contextmanager
+    def trusted_execution(self):
+        """Scope server-side fixture setup and reference actions, never agent calls."""
+        yield
 
     @property
     def tools(self) -> Dict[str, Callable]:

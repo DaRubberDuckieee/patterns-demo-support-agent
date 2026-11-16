@@ -3,6 +3,7 @@ import json
 import pytest
 
 from tau2.data_model.message import AssistantMessage, ToolCall
+from tau2.data_model.tasks import EnvFunctionCall, Task
 from tau2.domains.retail.data_model import (
     CreditCard,
     GiftCard,
@@ -18,6 +19,10 @@ from tau2.domains.retail.data_model import (
 )
 from tau2.domains.retail.environment import get_environment
 from tau2.environment.environment import Environment
+from tau2.evaluator.evaluator_env import (
+    EnvironmentEvaluator,
+    FullDuplexEnvironmentEvaluator,
+)
 
 
 @pytest.fixture
@@ -689,3 +694,102 @@ def test_public_catalog_remains_available_without_identity(retail_db):
     assert tools.get_product_details("6086499569").name == "Classic T-Shirt"
     assert tools.get_item_details("1008292230").available
     assert "Classic T-Shirt" in tools.list_all_product_types()
+
+
+def test_trusted_setup_does_not_authenticate_the_customer(retail_db):
+    env = get_environment(retail_db)
+    env.set_state(
+        None,
+        [
+            EnvFunctionCall(
+                env_type="assistant",
+                func_name="cancel_pending_order",
+                arguments={"order_id": "#W0000000", "reason": "no longer needed"},
+            )
+        ],
+        [],
+    )
+    assert env.tools.db.orders["#W0000000"].status == "cancelled"
+    assert "trusted_execution" not in env.tools.get_tools()
+    with pytest.raises(ValueError, match="Identity verification required"):
+        env.tools.get_order_details("#W0000000")
+    # Exceptions and nested scopes must restore the original authorization.
+    with pytest.raises(RuntimeError):
+        with env.trusted_execution():
+            with env.trusted_execution():
+                env.tools.find_user_id_by_email("sara.doe@example.com")
+            raise RuntimeError("fixture failed")
+    with pytest.raises(ValueError, match="Identity verification required"):
+        env.tools.get_user_details("sara_doe_496")
+
+
+@pytest.fixture
+def cancellation_task():
+    return Task.model_validate(
+        {
+            "id": "retail-identity",
+            "user_scenario": {"instructions": "Cancel my order."},
+            "evaluation_criteria": {
+                "reward_basis": ["DB"],
+                "actions": [
+                    {
+                        "action_id": "cancel",
+                        "name": "cancel_pending_order",
+                        "arguments": {
+                            "order_id": "#W0000000",
+                            "reason": "no longer needed",
+                        },
+                    }
+                ],
+            },
+        }
+    )
+
+
+@pytest.mark.parametrize(
+    "evaluator", [EnvironmentEvaluator, FullDuplexEnvironmentEvaluator]
+)
+def test_reference_actions_still_require_real_db_changes(
+    retail_db, cancellation_task, evaluator
+):
+    reward = evaluator.calculate_reward(
+        environment_constructor=get_environment,
+        task=cancellation_task,
+        full_trajectory=[],
+        env_kwargs={"db": retail_db},
+    )
+    # Gold actions omit identity lookups. They must still establish the target
+    # state so an agent that does nothing cannot receive a passing DB reward.
+    assert reward.reward == 0.0
+    assert not reward.db_check.db_match
+
+
+def test_verified_order_change_receives_db_reward(retail_db, cancellation_task):
+    env = get_environment(retail_db)
+    history = []
+    calls = [
+        ToolCall(
+            id="verify",
+            name="find_user_id_by_email",
+            arguments={"email": "sara.doe@example.com"},
+        ),
+        ToolCall(
+            id="cancel",
+            name="cancel_pending_order",
+            arguments={"order_id": "#W0000000", "reason": "no longer needed"},
+        ),
+    ]
+    for call in calls:
+        response = env.get_response(call)
+        assert not response.error
+        history.extend(
+            [AssistantMessage(role="assistant", tool_calls=[call]), response]
+        )
+    reward = EnvironmentEvaluator.calculate_reward(
+        environment_constructor=get_environment,
+        task=cancellation_task,
+        full_trajectory=history,
+        env_kwargs={"db": retail_db},
+    )
+    assert reward.reward == 1.0
+    assert reward.db_check.db_match
