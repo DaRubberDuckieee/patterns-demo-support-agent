@@ -431,7 +431,7 @@ def test_modify_user_address(
     # Test with non-existent user
     modify_user_address_call.arguments["user_id"] = "NONEXISTENT"
     response = environment.get_response(modify_user_address_call)
-    assert response.content == "Error: User not found"
+    assert response.content == "Error: Access denied: customer identity does not match"
 
 
 @pytest.fixture
