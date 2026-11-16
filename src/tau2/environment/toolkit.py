@@ -136,6 +136,10 @@ class ToolKitBase(metaclass=ToolKitType):
         """Scope server-side fixture setup and reference actions, never agent calls."""
         yield
 
+    def reset_runtime_state(self) -> None:
+        """Clear conversation state before restoring a trajectory, keeping the DB."""
+        pass
+
     @property
     def tools(self) -> Dict[str, Callable]:
         """Get the tools available in the ToolKit."""

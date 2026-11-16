@@ -85,9 +85,13 @@ class RetailTools(ToolKitBase):  # Tools
         if user_id is not None and user_id != self._verified_user_id:
             raise ValueError("Access denied: customer identity does not match")
 
+    def reset_runtime_state(self) -> None:
+        """Require a new identity lookup when restoring a conversation."""
+        self._verified_user_id = None
+
     def update_db(self, update_data: dict | None = None):
         """Clear conversation identity when loading a new database state."""
-        self._verified_user_id = None
+        self.reset_runtime_state()
         super().update_db(update_data)
 
     def _get_order(self, order_id: str) -> Order:

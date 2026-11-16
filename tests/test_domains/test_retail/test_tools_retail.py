@@ -628,6 +628,10 @@ def test_identity_lookup_unlocks_only_this_conversation(retail_db, name, argumen
     fresh = get_environment(env.tools.db)
     with pytest.raises(ValueError, match="Identity verification required"):
         fresh.tools.get_order_details("#W0000000")
+    env.set_state(None, None, [])
+    with pytest.raises(ValueError, match="Identity verification required"):
+        env.tools.get_order_details("#W0000000")
+    env.tools.find_user_id_by_email("sara.doe@example.com")
     env.tools.update_db()
     with pytest.raises(ValueError, match="Identity verification required"):
         env.tools.get_user_details("sara_doe_496")

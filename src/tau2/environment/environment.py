@@ -322,6 +322,10 @@ class Environment:
                 normalization); the state mutation is applied identically
                 either way.
         """
+        for toolkit in (self.tools, self.user_tools):
+            if toolkit is not None:
+                toolkit.reset_runtime_state()
+
         if self.solo_mode:
             assert all(
                 [not isinstance(message, UserMessage) for message in message_history]
