@@ -38,7 +38,9 @@ DEFAULT_LLM_ARGS_USER = {"temperature": DEFAULT_LLM_TEMPERATURE_USER}
 # Disable to use the configured agent model for every request, without classification.
 RETAIL_MODEL_ROUTING_ENABLED = True
 RETAIL_ROUTINE_MODEL = "gpt-5.2-2025-12-11"
-RETAIL_ROUTINE_REQUEST_TYPES = frozenset({"return", "variant_exchange", "address_change"})
+RETAIL_ROUTINE_REQUEST_TYPES = frozenset(
+    {"return", "variant_exchange", "address_change"}
+)
 # Keep provider-specific configured-agent arguments off the routine model.
 RETAIL_ROUTINE_LLM_ARGS = {"reasoning_effort": "none"}
 
