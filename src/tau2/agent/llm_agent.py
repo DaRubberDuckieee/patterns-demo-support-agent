@@ -1,7 +1,7 @@
 from typing import Generic, List, Optional, TypeVar
 
 from loguru import logger
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from tau2.agent.base.llm_config import LLMConfigMixin
 from tau2.agent.base_agent import (
@@ -9,7 +9,6 @@ from tau2.agent.base_agent import (
     ValidAgentInputMessage,
     is_valid_agent_history_message,
 )
-from tau2.agent.retail_routing import RetailRoutingState, generate_retail_response
 from tau2.data_model.message import (
     APICompatibleMessage,
     AssistantMessage,
@@ -47,7 +46,6 @@ class LLMAgentState(BaseModel):
 
     system_messages: list[SystemMessage]
     messages: list[APICompatibleMessage]
-    retail_routing: RetailRoutingState = Field(default_factory=RetailRoutingState)
 
 
 LLMAgentStateType = TypeVar("LLMAgentStateType", bound="LLMAgentState")
@@ -67,7 +65,6 @@ class LLMAgent(
         llm: str,
         llm_args: Optional[dict] = None,
         additional_stop_tool_names: frozenset[str] = frozenset(),
-        domain: str | None = None,
     ):
         """
         Initialize the LLMAgent.
@@ -80,7 +77,6 @@ class LLMAgent(
         )
 
         self.additional_stop_tool_names = additional_stop_tool_names
-        self.domain = domain
 
     def is_stop(self, message: AssistantMessage) -> bool:
         """Recognize domain-configured terminating tools; ordinary agents keep running."""
@@ -139,16 +135,6 @@ class LLMAgent(
         else:
             state.messages.append(message)
         messages = state.system_messages + state.messages
-        if self.domain == "retail":
-            return generate_retail_response(
-                domain=self.domain,
-                state=state,
-                model=self.llm,
-                llm_args=self.llm_args,
-                tools=self.tools,
-                messages=messages,
-                call_name="agent_response",
-            )
         assistant_message = generate(
             model=self.llm,
             tools=self.tools,
@@ -525,7 +511,6 @@ def create_llm_agent(tools, domain_policy, **kwargs):
         domain_policy=domain_policy,
         llm=kwargs.get("llm"),
         llm_args=kwargs.get("llm_args"),
-        domain=kwargs.get("domain"),
         additional_stop_tool_names=kwargs.get(
             "additional_stop_tool_names", frozenset()
         ),

@@ -2,40 +2,6 @@
 
 This guide covers the `tau2.runner` API for running simulations at different levels of control. Whether you want a one-liner CLI command or full programmatic control over every component, the runner framework has you covered.
 
-## Retail model routing
-
-The standard `llm_agent` routes clearly routine retail returns, same-product
-variant exchanges, and address updates to `gpt-5.2-2025-12-11`. It classifies the
-visible conversation on customer turns using that model. Requests mixing routine
-and other work, uncertain classifications, classifier errors, and requests outside
-the enabled types use the configured `--agent-llm` model. Tool continuations keep the route;
-new customer messages trigger another classification.
-
-Configure routing in `src/tau2/config.py`:
-
-- `RETAIL_MODEL_ROUTING_ENABLED = False` restores one configured model for all
-  requests and skips classification entirely.
-- `RETAIL_ROUTINE_MODEL` selects the cheaper model for classification and routine
-  responses. Its default is `gpt-5.2-2025-12-11`.
-- `RETAIL_ROUTINE_REQUEST_TYPES` selects from `return`, `variant_exchange`, and
-  `address_change`. By default, all three are enabled. An empty set disables
-  routine responses.
-- `RETAIL_ROUTINE_LLM_ARGS` configures the cheaper model separately from the
-  configured agent's provider-specific arguments.
-
-If routine generation raises an exception or returns an empty response, the
-agent retries the same generation once with the configured model and its
-arguments. It stays on that model for the rest of the conversation. A tool error
-also sends the next response to the configured model. Existing tool results stay
-in history, so fallback never restarts the conversation or replays completed
-order changes. A configured-model failure propagates through the existing error
-handling; the underlying provider's normal retry policy still applies.
-
-Routing adds classification calls and does not guarantee a cost or quality
-improvement for every request. Other domains and agent implementations retain
-their configured models. Programmatic `LLMAgent` callers can opt into retail
-routing with `domain="retail"`; the retail runner supplies this automatically.
-
 ## Architecture Overview
 
 The runner framework is organized into three layers:

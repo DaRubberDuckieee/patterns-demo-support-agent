@@ -34,16 +34,6 @@ DEFAULT_LLM_TEMPERATURE_USER = 0.0
 DEFAULT_LLM_ARGS_AGENT = {"temperature": DEFAULT_LLM_TEMPERATURE_AGENT}
 DEFAULT_LLM_ARGS_USER = {"temperature": DEFAULT_LLM_TEMPERATURE_USER}
 
-# Retail text agents classify customer requests before selecting a response model.
-# Disable to use the configured agent model for every request, without classification.
-RETAIL_MODEL_ROUTING_ENABLED = True
-RETAIL_ROUTINE_MODEL = "gpt-5.2-2025-12-11"
-RETAIL_ROUTINE_REQUEST_TYPES = frozenset(
-    {"return", "variant_exchange", "address_change"}
-)
-# Keep provider-specific configured-agent arguments off the routine model.
-RETAIL_ROUTINE_LLM_ARGS = {"reasoning_effort": "none"}
-
 # English elicitation defaults. Other domains retain the defaults above.
 ELICITATION_DOMAINS = frozenset({"intake"})
 # Retrieval config for banking_knowledge runs that do not choose one; the
