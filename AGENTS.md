@@ -270,3 +270,9 @@ With provider credentials configured, explicitly opt in with
 `uv run pytest --run-live-api -m live_api`. This can incur API charges.
 Audio-provider tests retain their existing provider-specific environment gates
 and `full_duplex_integration` selection.
+
+## Reviewing pull requests
+
+Before approving any PR that changes model selection, routing or fallbacks, or
+that claims to fix a Braintrust pattern, follow
+`.agents/skills/review-model-change/SKILL.md`.
