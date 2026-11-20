@@ -1,6 +1,7 @@
 """Toolkit for the retail domain."""
 
 import json
+from contextlib import contextmanager
 from typing import List
 
 from tau2.domains.retail.data_model import (
@@ -30,6 +31,9 @@ class RetailTools(ToolKitBase):  # Tools
         self, db: RetailDB, regional_settings: DomainRegionalSettings | None = None
     ) -> None:
         super().__init__(db)
+        # Identity belongs to this conversation, never to the shared database.
+        self._verified_user_id: str | None = None
+        self._trusted_execution = False
         self.regional_settings = (
             DomainRegionalSettings.model_validate(regional_settings).model_copy(
                 deep=True
@@ -58,6 +62,38 @@ class RetailTools(ToolKitBase):  # Tools
                 tool.params.model_rebuild(force=True)
         return tools
 
+    @contextmanager
+    def trusted_execution(self):
+        """Allow server-side setup without granting the conversation an identity."""
+        previous_scope = self._trusted_execution
+        previous_identity = self._verified_user_id
+        self._trusted_execution = True
+        try:
+            yield
+        finally:
+            self._trusted_execution = previous_scope
+            self._verified_user_id = previous_identity
+
+    def _require_verified_user(self, user_id: str | None = None) -> None:
+        """Require the policy's identity lookup and access to that account only."""
+        if self._trusted_execution:
+            return
+        if self._verified_user_id is None:
+            raise ValueError(
+                "Identity verification required: look up the customer by email or name and zip first"
+            )
+        if user_id is not None and user_id != self._verified_user_id:
+            raise ValueError("Access denied: customer identity does not match")
+
+    def reset_runtime_state(self) -> None:
+        """Require a new identity lookup when restoring a conversation."""
+        self._verified_user_id = None
+
+    def update_db(self, update_data: dict | None = None):
+        """Clear conversation identity when loading a new database state."""
+        self.reset_runtime_state()
+        super().update_db(update_data)
+
     def _get_order(self, order_id: str) -> Order:
         """Get the order from the database.
 
@@ -70,9 +106,12 @@ class RetailTools(ToolKitBase):  # Tools
         Raises:
             ValueError: If the order is not found.
         """
+        self._require_verified_user()
         if order_id not in self.db.orders:
             raise ValueError("Order not found")
-        return self.db.orders[order_id]
+        order = self.db.orders[order_id]
+        self._require_verified_user(order.user_id)
+        return order
 
     def _get_user(self, user_id: str) -> User:
         """Get the user from the database.
@@ -86,6 +125,7 @@ class RetailTools(ToolKitBase):  # Tools
         Raises:
             ValueError: If the user is not found.
         """
+        self._require_verified_user(user_id)
         if user_id not in self.db.users:
             raise ValueError("User not found")
         return self.db.users[user_id]
@@ -315,12 +355,13 @@ class RetailTools(ToolKitBase):  # Tools
 
         return order
 
-    @is_tool(ToolType.READ)
+    @is_tool(ToolType.READ, mutates_state=True)
     def find_user_id_by_name_zip(
         self, first_name: str, last_name: str, zip: str
     ) -> str:
         """Find user id by first name, last name, and zip code. If the user is not found, the function
-        will return an error message. By default, find user id by email, and only call this function
+        will return an error message. A unique match verifies this conversation's customer identity.
+        By default, find user id by email, and only call this function
         if the user is not found by email or cannot remember email.
 
         Args:
@@ -334,6 +375,7 @@ class RetailTools(ToolKitBase):  # Tools
         Raises:
             ValueError: If the user is not found.
         """
+        self._verified_user_id = None
         wanted_first = fold_for_match(first_name)
         wanted_last = fold_for_match(last_name)
         matches = []
@@ -345,14 +387,16 @@ class RetailTools(ToolKitBase):  # Tools
             ):
                 matches.append(user_id)
         if len(matches) == 1:
+            self._verified_user_id = matches[0]
             return matches[0]
         if matches:
             raise ValueError("User lookup is ambiguous")
         raise ValueError("User not found")
 
-    @is_tool(ToolType.READ)
+    @is_tool(ToolType.READ, mutates_state=True)
     def find_user_id_by_email(self, email: str) -> str:
         """Find user id by email. If the user is not found, the function will return an error message.
+        A unique match verifies this conversation's customer identity.
 
         Args:
             email: The email of the user, such as 'something@example.com'.
@@ -363,12 +407,14 @@ class RetailTools(ToolKitBase):  # Tools
         Raises:
             ValueError: If the user is not found.
         """
+        self._verified_user_id = None
         wanted = fold_for_match(email)
         matches = []
         for user_id, user in self.db.users.items():
             if fold_for_match(user.email) == wanted:
                 matches.append(user_id)
         if len(matches) == 1:
+            self._verified_user_id = matches[0]
             return matches[0]
         if matches:
             raise ValueError("User lookup is ambiguous")
@@ -376,7 +422,8 @@ class RetailTools(ToolKitBase):  # Tools
 
     @is_tool(ToolType.READ)
     def get_order_details(self, order_id: str) -> Order:
-        """Get the status and details of an order.
+        """Get the status and details of an order belonging to the verified customer.
+        First verify identity with find_user_id_by_email or find_user_id_by_name_zip.
 
         Args:
             order_id: The order id, such as '#W0000000'. Be careful there is a '#' symbol at the beginning of the order id.
@@ -424,7 +471,8 @@ class RetailTools(ToolKitBase):  # Tools
 
     @is_tool(ToolType.READ)
     def get_user_details(self, user_id: str) -> User:
-        """Get the details of a user, including their orders.
+        """Get the verified customer's details, including their orders.
+        First verify identity with find_user_id_by_email or find_user_id_by_name_zip.
 
         Args:
             user_id: The user id, such as 'sara_doe_496'.
