@@ -28,6 +28,10 @@ DEFAULT_LANGUAGE = "en"
 DEFAULT_AGENT_IMPLEMENTATION = "llm_agent"
 DEFAULT_USER_IMPLEMENTATION = "user_simulator"
 DEFAULT_LLM_AGENT = "gpt-4.1-2025-04-14"
+# Standard text-agent telecom routing. Disable to honor --agent-llm everywhere.
+# The configured agent model remains the fallback for the entire conversation.
+TELECOM_LLM_ROUTING_ENABLED = True
+TELECOM_LLM_AGENT = "gpt-5.2-2025-12-11"
 DEFAULT_LLM_USER = "gpt-4.1-2025-04-14"
 DEFAULT_LLM_TEMPERATURE_AGENT = 0.0
 DEFAULT_LLM_TEMPERATURE_USER = 0.0

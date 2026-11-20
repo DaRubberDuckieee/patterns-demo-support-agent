@@ -85,6 +85,27 @@ state = agent.get_init_state()
 response, state = agent.generate_next_message(user_msg, state)
 ```
 
+### Telecom text model routing
+
+The runner passes the domain into the standard `llm_agent`. For `telecom`,
+`TELECOM_LLM_AGENT` in `src/tau2/config.py` selects `gpt-5.2-2025-12-11`
+by default, overriding the configured `--agent-llm` for generation. Other
+domains keep their configured model. Set `TELECOM_LLM_ROUTING_ENABLED = False`
+in that configuration file to restore the configured model for all domains.
+Restart running processes after changing these settings.
+
+If the telecom model raises an exception or returns no text and no tool calls,
+the agent generates once with the configured model using the same history.
+It stays on that model for the rest of the conversation. The fallback decision
+is serialized in `LLMAgentState`; a fresh conversation resets it. Whitespace-only
+text is empty; tool-only replies are valid. No tool is executed by this retry,
+and only the accepted assistant reply enters the history. Known costs from a
+discarded empty response are added to the fallback reply's cost; unknown costs
+remain unknown. Existing provider-level retry behavior is unchanged.
+
+Direct `LLMAgent` callers must pass `domain="telecom"` to enable routing.
+Ground-truth, solo, and audio-native agent implementations are unchanged.
+
 ### DiscreteTimeAudioNativeAgent (voice evals, full-duplex)
 
 `DiscreteTimeAudioNativeAgent` is the agent for voice evals. It connects to an audio-native API (OpenAI Realtime, Gemini Live, xAI) and exchanges audio in discrete time ticks.

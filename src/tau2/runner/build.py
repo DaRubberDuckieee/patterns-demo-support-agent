@@ -150,8 +150,8 @@ def build_agent(
         except Exception:
             pass
 
-    domain_kwargs = {}
     domain = environment.get_domain_name()
+    domain_kwargs = {"domain": domain} if agent_name == "llm_agent" else {}
     if domain in ELICITATION_DOMAINS:
         domain_kwargs["additional_stop_tool_names"] = frozenset({"end_call"})
         if audio_native_config is not None:

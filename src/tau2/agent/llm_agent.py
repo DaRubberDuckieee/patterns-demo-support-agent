@@ -3,6 +3,7 @@ from typing import Generic, List, Optional, TypeVar
 from loguru import logger
 from pydantic import BaseModel
 
+from tau2 import config
 from tau2.agent.base.llm_config import LLMConfigMixin
 from tau2.agent.base_agent import (
     HalfDuplexAgent,
@@ -46,6 +47,7 @@ class LLMAgentState(BaseModel):
 
     system_messages: list[SystemMessage]
     messages: list[APICompatibleMessage]
+    telecom_fallback_active: bool = False
 
 
 LLMAgentStateType = TypeVar("LLMAgentStateType", bound="LLMAgentState")
@@ -65,6 +67,7 @@ class LLMAgent(
         llm: str,
         llm_args: Optional[dict] = None,
         additional_stop_tool_names: frozenset[str] = frozenset(),
+        domain: Optional[str] = None,
     ):
         """
         Initialize the LLMAgent.
@@ -77,6 +80,11 @@ class LLMAgent(
         )
 
         self.additional_stop_tool_names = additional_stop_tool_names
+        self.telecom_llm = (
+            config.TELECOM_LLM_AGENT
+            if domain == "telecom" and config.TELECOM_LLM_ROUTING_ENABLED
+            else None
+        )
 
     def is_stop(self, message: AssistantMessage) -> bool:
         """Recognize domain-configured terminating tools; ordinary agents keep running."""
@@ -135,6 +143,40 @@ class LLMAgent(
         else:
             state.messages.append(message)
         messages = state.system_messages + state.messages
+        routed = (
+            self.telecom_llm is not None
+            and self.telecom_llm != self.llm
+            and not state.telecom_fallback_active
+        )
+        discarded_response = None
+        if routed:
+            try:
+                assistant_message = generate(
+                    model=self.telecom_llm,
+                    tools=self.tools,
+                    messages=messages,
+                    call_name="agent_response",
+                    **self.llm_args,
+                )
+                if assistant_message is not None and (
+                    assistant_message.tool_calls
+                    or (assistant_message.content or "").strip()
+                ):
+                    return assistant_message
+                discarded_response = assistant_message
+                reason = "empty response"
+            except Exception as exc:
+                reason = type(exc).__name__
+            # Persist before retrying, even if the configured model also fails.
+            # No failed/empty assistant reply is added to the conversation.
+            state.telecom_fallback_active = True
+            logger.warning(
+                "Telecom model {} failed ({}); using {} for this conversation",
+                self.telecom_llm,
+                reason,
+                self.llm,
+            )
+
         assistant_message = generate(
             model=self.llm,
             tools=self.tools,
@@ -142,6 +184,21 @@ class LLMAgent(
             call_name="agent_response",
             **self.llm_args,
         )
+        if routed:
+            if assistant_message is None or not (
+                assistant_message.tool_calls
+                or (assistant_message.content or "").strip()
+            ):
+                raise ValueError("Configured fallback model returned an empty response")
+            if discarded_response is not None:
+                # Account for a billed empty generation as well as the fallback.
+                # Preserve unknown cost rather than reporting a partial total.
+                assistant_message.cost = (
+                    assistant_message.cost + discarded_response.cost
+                    if assistant_message.cost is not None
+                    and discarded_response.cost is not None
+                    else None
+                )
         return assistant_message
 
 
@@ -505,12 +562,14 @@ def create_llm_agent(tools, domain_policy, **kwargs):
         **kwargs: Additional arguments. Supports:
             - llm (str): LLM model name.
             - llm_args (dict): Additional LLM arguments.
+            - domain (str): Domain used to select optional telecom routing.
     """
     return LLMAgent(
         tools=tools,
         domain_policy=domain_policy,
         llm=kwargs.get("llm"),
         llm_args=kwargs.get("llm_args"),
+        domain=kwargs.get("domain"),
         additional_stop_tool_names=kwargs.get(
             "additional_stop_tool_names", frozenset()
         ),
