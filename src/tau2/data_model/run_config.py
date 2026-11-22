@@ -558,6 +558,10 @@ class TextRunSettings(RunSettings):
             default=DEFAULT_LLM_AGENT,
         ),
     ]
+    route_telecom_troubleshooting: bool = Field(
+        default=False,
+        description="Use GPT-5.2 in place of Opus 4.5 for the telecom text benchmark.",
+    )
     llm_args_agent: Annotated[
         dict,
         Field(

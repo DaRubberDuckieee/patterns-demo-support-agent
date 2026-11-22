@@ -21,6 +21,7 @@ from tau2.config import (
     DEFAULT_SAVE_TO,
     DEFAULT_TEXT_STREAMING_CONFIG,
     ELICITATION_DOMAINS,
+    TELECOM_TROUBLESHOOTING_LLM_AGENT,
 )
 from tau2.data_model.audio_effects import EffectTimeline
 from tau2.data_model.benchmark import BenchmarkRunInfo
@@ -327,6 +328,14 @@ class TextRunConfig(BaseRunConfig, TextRunSettings):
 
     @property
     def effective_agent_model(self) -> str:
+        if (
+            self.route_telecom_troubleshooting
+            and self.domain == "telecom"
+            and self.agent == "llm_agent"
+            and self.llm_agent.removeprefix("anthropic/")
+            in {"claude-opus-4-5", "claude-opus-4-5-20251101"}
+        ):
+            return TELECOM_TROUBLESHOOTING_LLM_AGENT
         return self.llm_agent
 
     @property
