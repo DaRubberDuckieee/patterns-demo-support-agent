@@ -114,7 +114,7 @@ def make_run_name(config: RunConfig) -> str:
             f"{config.audio_native_config.provider}-{config.audio_native_config.model}"
         )
     else:
-        llm_agent_name = config.llm_agent
+        llm_agent_name = config.effective_agent_model
     clean_llm_agent_name = [x for x in llm_agent_name.split("/") if x][-1]
     agent_name = f"{config.effective_agent}_{clean_llm_agent_name}"
 
@@ -219,7 +219,7 @@ def get_info(
         )
         agent_llm_args = None
     else:
-        agent_llm = config.llm_agent
+        agent_llm = config.effective_agent_model
         agent_llm_args = config.llm_args_agent
 
     agent_info = AgentInfo(

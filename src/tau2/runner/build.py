@@ -621,7 +621,7 @@ def build_text_orchestrator(
             language_context, agent_voice_gender=context.agent_voice_gender
         ),
         language=language_context.language,
-        llm=config.llm_agent,
+        llm=config.effective_agent_model,
         llm_args=config.llm_args_agent,
         task=task,
         solo_mode=solo_mode,

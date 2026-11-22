@@ -575,7 +575,7 @@ def unit_provider(config: RunConfig) -> Optional[str]:
     provider = config.effective_agent_provider
     if provider:
         return provider
-    llm = getattr(config, "llm_agent", None)
+    llm = config.effective_agent_model
     if llm and "/" in llm:
         return llm.split("/", 1)[0]
     return None

@@ -89,6 +89,11 @@ def add_run_args(parser):
         help=f"The LLM to use for the agent. Default is {DEFAULT_LLM_AGENT}.",
     )
     parser.add_argument(
+        "--route-telecom-troubleshooting",
+        action="store_true",
+        help="Use GPT-5.2 in place of Opus 4.5 for the standard telecom text agent.",
+    )
+    parser.add_argument(
         "--agent-llm-args",
         type=json.loads,
         default={"temperature": DEFAULT_LLM_TEMPERATURE_AGENT},
@@ -878,6 +883,7 @@ def main():
                 **shared_kwargs,
                 agent=args.agent,
                 llm_agent=args.agent_llm,
+                route_telecom_troubleshooting=args.route_telecom_troubleshooting,
                 llm_args_agent=args.agent_llm_args,
                 user=args.user,
                 max_steps=args.max_steps,
